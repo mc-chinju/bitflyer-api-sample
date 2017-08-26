@@ -9,7 +9,7 @@ require "pry"
 # settings
 PRODUCT_CODE = "FX_BTC_JPY"
 BAND_COUNT = 20
-INTERVAL = 1.minute
+INTERVAL = 1.hour
 SD_LEVEL = 2
 
 # https://lightning.bitflyer.jp/docs/playground?lang=ja
@@ -28,23 +28,30 @@ end
 prices = []
 
 # BAND_COUNT ぶんの 移動平均を計算
-BAND_COUNT.times do
+puts "----#{BAND_COUNT}回、移動平均を計算します----"
+BAND_COUNT.times do |i|
   current_mid_price = board(PRODUCT_CODE)["mid_price"]
   prices.push(current_mid_price)
-  puts "ただいまの価格は ¥#{current_mid_price.to_i.to_s(:delimited)} です。"
+  puts "#{i + 1}: ¥#{current_mid_price.to_i.to_s(:delimited)}"
   sleep(INTERVAL)
 end
 
-<<-EOS
-  "#{BAND_COUNT}" 回の平均値の集計が完了しました。
+str = <<-EOS
+-----#{BAND_COUNT} 回の平均値の計算完了-----
 
-  --------------------------
-  移動平均値: "#{prices.average}"
-  標準偏差(α): "#{prices.sd}"
-  --------------------------
+--------------------------
+移動平均値: #{prices.ave}
+標準偏差(α): #{prices.sd}
+--------------------------
 
-  実際の売り買いの判定処理に移ります。
+実際の売り買いの判定処理に移ります。
+
+.
+.
+.
+
 EOS
+puts str
 
 # 以降の処理は BAND_COUNT 数の配列を保ちつつ、実際に売り買いの判定を行います。
 while(1)
@@ -52,26 +59,40 @@ while(1)
   prices.push(current_mid_price)
   prices.shift
 
-  ave = prices.average # 移動平均
+  ave = prices.ave # 移動平均
   sd  = prices.sd # 標準偏差
 
-  <<-EOS
-    ただいまの価格は ¥"#{current_mid_price.to_i.to_s(:delimited)}" です。
+  puts "-------------------------------"
+  str = <<-EOS
+  ただいまの価格は ¥#{current_mid_price.to_i.to_s(:delimited)} です。
 
-    --------------------------
-    移動平均値: "#{ave}"
-    標準偏差(α): "#{sd}"
-    --------------------------
+  --------------------------
+  移動平均値: #{ave}
+  標準偏差(α): #{sd}
+  --------------------------
   EOS
+  puts str
 
   # ボリンジャーバンドの SD_LEVEL(n 次)判定を行い、売り買いの判断を下す
   _price = current_mid_price.to_i.to_s(:delimited)
-  if current_mid_price >= ave + SD_LEVEL * sd
-    puts "¥#{_price} で売り注文"
-  elsif current_mid_price < ave - SD_LEVEL * sd
-    puts "¥#{_price} で買い注文"
+  top_line = ave + SD_LEVEL * sd
+  bottom_line = ave - SD_LEVEL * sd
+
+  str = <<-EOS
+  #{SD_LEVEL}α のボリンジャーバンド:
+  ¥#{bottom_line.to_i.to_s(:delimited)} 〜 ¥#{top_line.to_i.to_s(:delimited)}
+
+  現在の価格: ¥#{_price}
+  EOS
+  puts str
+
+  if current_mid_price >= top_line
+    puts "  バンドを上回ったため売り注文"
+  elsif current_mid_price < bottom_line
+    puts "  バンドを下回ったため買い注文"
   else
-    puts "¥#{_price} では何もしない"
+    puts "  バンドの範囲内のため何もしない"
   end
+  puts "-------------------------------"
   sleep(INTERVAL)
 end
